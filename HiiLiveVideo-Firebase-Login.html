@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#6d28d9">
+  <title>HiiLiveVideo</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,Arial,sans-serif;background:#f7f4ff;color:#24143d}
+    header{background:linear-gradient(135deg,#3b0764,#6d28d9,#ec4899);color:white;padding:28px 22px 34px;border-radius:0 0 42px 42px}
+    .brand{display:flex;align-items:center;gap:14px;max-width:650px;margin:auto}
+    .logo{width:64px;height:64px;border-radius:18px;background:#ffffff30;display:grid;place-items:center;font-size:30px}
+    h1{font-size:27px;margin:0} header p{margin:4px 0 0;color:#f3e8ff}
+    main{max-width:650px;margin:28px auto;padding:0 16px}
+    .card{background:white;border-radius:28px;padding:26px 22px;box-shadow:0 12px 35px #32105b12}
+    .pill{display:inline-block;background:#f3e8ff;color:#4c1d95;border-radius:30px;padding:8px 16px;font-weight:700;font-size:13px}
+    h2{font-size:24px;margin:16px 0 8px}
+    .muted{color:#766b86;line-height:1.55}
+    label{display:block;font-weight:650;margin:18px 0 8px}
+    input{width:100%;padding:16px;border:1px solid #d9d2e5;border-radius:15px;font-size:17px;margin:5px 0 12px;color:#24143d}
+    button{width:100%;border:0;border-radius:15px;padding:16px;margin:7px 0;font-size:17px;font-weight:700;background:#6d28d9;color:white}
+    button.secondary{background:#f3e8ff;color:#4c1d95}
+    button:disabled{opacity:.55}
+    #recaptcha-container{margin:12px 0;overflow:hidden}
+    #status{margin-top:14px;padding:12px;border-radius:12px;background:#f3e8ff;color:#4c1d95;display:none;overflow-wrap:anywhere}
+    #app{display:none}
+    .hidden{display:none!important}
+    .small{font-size:13px}
+  </style>
+</head>
+<body>
+<header><div class="brand"><div class="logo">📹</div><div><h1>HiiLiveVideo</h1><p>Meet · Chat · Connect Worldwide</p></div></div></header>
+<main>
+  <section class="card" id="login-card">
+    <span class="pill">WELCOME</span>
+    <h2>Sign in to HiiLiveVideo</h2>
+    <p class="muted">Sign in with your mobile number or Google account.</p>
+
+    <div id="phone-area">
+      <label for="phone">Mobile number with country code</label>
+      <input id="phone" type="tel" autocomplete="tel" placeholder="+91 98765 43210">
+      <div id="recaptcha-container"></div>
+      <button id="send-otp">Continue with Mobile OTP</button>
+    </div>
+
+    <div id="verify-area" class="hidden">
+      <label for="otp">Enter the 6-digit OTP</label>
+      <input id="otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">
+      <button id="verify-otp">Verify OTP</button>
+      <button id="back-phone" class="secondary">Change mobile number</button>
+    </div>
+
+    <button id="google-login" class="secondary">Continue with Google</button>
+    <p class="muted small">Phone sign-in requires SMS verification and is subject to Firebase's daily SMS quota. Never share your OTP with anyone.</p>
+    <div id="status" role="status"></div>
+  </section>
+
+  <section class="card" id="app">
+    <span class="pill">SIGNED IN</span>
+    <h2>Welcome to HiiLiveVideo</h2>
+    <p id="user-info" class="muted"></p>
+    <p class="muted">Your Firebase sign-in is working. Friends calls, random live video, chat, gifts and coin payments still need their own backend and video service setup.</p>
+    <button id="logout" class="secondary">Sign out</button>
+  </section>
+</main>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber,
+    GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut
+  } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBMq3vaTzoYxRvCvwXG8vJWL4r0HmkPOnE",
+    authDomain: "hiilivevideo.firebaseapp.com",
+    projectId: "hiilivevideo",
+    storageBucket: "hiilivevideo.firebasestorage.app",
+    messagingSenderId: "89372003753",
+    appId: "1:89372003753:web:45910f0e5ef02025eb88b8"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const $ = id => document.getElementById(id);
+  let confirmationResult = null;
+  let recaptchaVerifier = null;
+
+  function status(message, isError=false) {
+    const box = $("status");
+    box.style.display = "block";
+    box.style.background = isError ? "#fee2e2" : "#f3e8ff";
+    box.style.color = isError ? "#991b1b" : "#4c1d95";
+    box.textContent = message;
+  }
+
+  function showSignedIn(user) {
+    $("login-card").style.display = "none";
+    $("app").style.display = "block";
+    $("user-info").textContent = user.displayName || user.phoneNumber || user.email || "Signed-in user";
+  }
+
+  onAuthStateChanged(auth, user => {
+    if (user) showSignedIn(user);
+  });
+
+  try {
+    await getRedirectResult(auth);
+  } catch (error) {
+    status("Google sign-in: " + error.message, true);
+  }
+
+  $("send-otp").addEventListener("click", async () => {
+    const phone = $("phone").value.trim().replace(/[()\s-]/g, "");
+    if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+      status("Please enter a valid number with country code, for example +919876543210.", true);
+      return;
+    }
+    $("send-otp").disabled = true;
+    try {
+      if (recaptchaVerifier) {
+        try { await recaptchaVerifier.clear(); } catch {}
+      }
+      recaptchaVerifier = new RecaptchaVerifier(auth, "recaptcha-container", { size: "normal" });
+      await recaptchaVerifier.render();
+      confirmationResult = await signInWithPhoneNumber(auth, phone, recaptchaVerifier);
+      $("phone-area").classList.add("hidden");
+      $("verify-area").classList.remove("hidden");
+      status("OTP sent. Check your SMS and enter the 6-digit code here.");
+    } catch (error) {
+      status("Could not send OTP: " + error.message, true);
+      if (recaptchaVerifier) {
+        try { await recaptchaVerifier.clear(); } catch {}
+        recaptchaVerifier = null;
+      }
+    } finally {
+      $("send-otp").disabled = false;
+    }
+  });
+
+  $("verify-otp").addEventListener("click", async () => {
+    const code = $("otp").value.trim();
+    if (!confirmationResult || !/^\d{6}$/.test(code)) {
+      status("Enter the 6-digit OTP received by SMS.", true);
+      return;
+    }
+    $("verify-otp").disabled = true;
+    try {
+      const result = await confirmationResult.confirm(code);
+      showSignedIn(result.user);
+    } catch (error) {
+      status("OTP verification failed: " + error.message, true);
+    } finally {
+      $("verify-otp").disabled = false;
+    }
+  });
+
+  $("back-phone").addEventListener("click", () => {
+    $("verify-area").classList.add("hidden");
+    $("phone-area").classList.remove("hidden");
+    $("status").style.display = "none";
+  });
+
+  $("google-login").addEventListener("click", async () => {
+    try {
+      await signInWithRedirect(auth, new GoogleAuthProvider());
+    } catch (error) {
+      status("Google sign-in failed: " + error.message, true);
+    }
+  });
+
+  $("logout").addEventListener("click", async () => {
+    await signOut(auth);
+    location.reload();
+  });
+</script>
+</body>
+</html>

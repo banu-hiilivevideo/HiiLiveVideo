@@ -7,6 +7,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,7 +29,6 @@ jobs:
           distribution: temurin
           java-version: 21
 
-
       - name: Prepare Capacitor project
         run: |
           mkdir -p mobile/www
@@ -45,13 +47,27 @@ jobs:
           cd mobile/android
           chmod +x gradlew
           ./gradlew assembleDebug
+
       - name: Get SHA1 Fingerprint
         run: |
           cd mobile/android
           chmod +x gradlew
-          ./gradlew signingReport
+          ./gradlew signingReport | tee signing-report.txt
+
+          SHA1="$(awk '/Variant: debug/{found=1} found && /SHA1:/{print $2; exit}' signing-report.txt)"
+
+          if [ -z "$SHA1" ]; then
+            echo "SHA1 fingerprint not found"
+            exit 1
+          fi
+
+          echo "## Android Debug SHA-1" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$SHA1\`" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: HiiLiveVideo-APK
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7

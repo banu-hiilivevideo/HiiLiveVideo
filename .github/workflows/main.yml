@@ -1,0 +1,53 @@
+
+name: Build HiiLiveVideo Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Prepare Capacitor project
+        run: |
+          mkdir -p mobile/www
+          rsync -av --exclude='.git' --exclude='.github' --exclude='mobile' ./ mobile/www/
+          cd mobile
+          npm init -y
+          npm install @capacitor/core@7 @capacitor/cli@7 @capacitor/android@7
+          npx cap init HiiLiveVideo com.hiilivevideo.app --web-dir=www
+          npx cap add android
+          npx cap sync android
+
+      - name: Build APK
+        run: |
+          cd mobile/android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HiiLiveVideo-APK
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk

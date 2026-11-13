@@ -45,7 +45,11 @@ jobs:
           cd mobile/android
           chmod +x gradlew
           ./gradlew assembleDebug
-
+      - name: Get SHA1 Fingerprint
+        run: |
+          cd mobile/android
+          chmod +x gradlew
+          ./gradlew signingReport
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

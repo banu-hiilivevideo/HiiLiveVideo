@@ -1,0 +1,9 @@
+Firebase setup checklist
+1. Create a Firebase project at https://console.firebase.google.com/
+2. Register an Android app with package name: com.hiilivevideo.app
+3. Enable Authentication providers: Phone and Google.
+4. Create Firestore Database and deploy firestore.rules.
+5. Add App Check before public launch.
+6. Set admin custom claims only from a trusted server after verifying the owner's identity.
+7. Configure SMS region policy, quotas, abuse protection and billing alerts.
+8. Keep service account credentials in server secret storage, never in the APK or web folder.
